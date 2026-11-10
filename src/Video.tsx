@@ -100,6 +100,57 @@ function enter(frame: number, fps: number, delay = 0) {
   });
 }
 
+// Fill scale: the content layout is drawn in a box narrower by k and scaled
+// up by k, so the layout area stays about equal across aspects. k is chosen
+// so the box has whole-pixel sides (4/3 at 9:16 gives 810 by 1440; 9/8 at 4:5
+// gives 960 by 1200); a fractional box put the two engines a pixel apart.
+// Mirrors fillScale in the HyperFrames generator.
+function fillScale(width: number, height: number): number {
+  if (height * 9 === width * 16) return 4 / 3;
+  if (height * 4 === width * 5) return 9 / 8;
+  return 1;
+}
+
+function useFillScale(): number {
+  const { width, height } = useVideoConfig();
+  return fillScale(width, height);
+}
+
+// Headline fit width under the fill scale: the full width divided by the
+// square root of k, rounded to one decimal, as in the generator.
+function fitWidth(width: number, k: number): number {
+  return k === 1 ? width : Math.round((width / k ** 0.5) * 10) / 10;
+}
+
+function Layout({
+  style,
+  children,
+}: {
+  style: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const { width, height } = useVideoConfig();
+  const k = fillScale(width, height);
+  if (k === 1) return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+  // The padded layout sits inside the scaled box, so percent padding
+  // resolves against the box and margins keep their share of the frame.
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: width / k,
+        height: height / k,
+        transform: `scale(${k})`,
+        transformOrigin: "0 0",
+      }}
+    >
+      <AbsoluteFill style={style}>{children}</AbsoluteFill>
+    </div>
+  );
+}
+
 function headlineSize(text: string, maxWidth: number, cap: number): number {
   const fitted = fitText({
     text,
@@ -148,7 +199,7 @@ function SceneLabel({ text, palette }: { text?: string; palette: Palette }) {
       style={{
         color: palette.muted,
         fontFamily: bodyFont,
-        fontSize: 26,
+        fontSize: 32,
         fontWeight: 600,
         letterSpacing: 0.2,
         marginBottom: 32,
@@ -170,11 +221,10 @@ function Hero({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
     scene.content.subtitle,
     stringValue(scene.content.line2),
   );
+  const k = useFillScale();
   const progress = enter(frame, fps);
   return (
-    <AbsoluteFill
-      style={{ padding: "11% 9%", justifyContent: "space-between" }}
-    >
+    <Layout style={{ padding: "11% 9%", justifyContent: "space-between" }}>
       <div
         style={{
           width: 116,
@@ -195,7 +245,7 @@ function Hero({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           style={{
             color: palette.ink,
             fontFamily: displayFont,
-            fontSize: headlineSize(title, width * 0.82, 126),
+            fontSize: headlineSize(title, fitWidth(width * 0.82, k), 126),
             fontWeight: 600,
             letterSpacing: -2.6,
             lineHeight: 0.98,
@@ -209,7 +259,7 @@ function Hero({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
             style={{
               color: palette.muted,
               fontFamily: bodyFont,
-              fontSize: 38,
+              fontSize: 46,
               lineHeight: 1.35,
               marginTop: 44,
               maxWidth: "82%",
@@ -223,13 +273,13 @@ function Hero({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
         style={{
           color: palette.accent,
           fontFamily: bodyFont,
-          fontSize: 25,
+          fontSize: 32,
           fontWeight: 600,
         }}
       >
         {stringValue(scene.content.footer)}
       </div>
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
@@ -247,7 +297,7 @@ function Mechanism({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
     extrapolateRight: "clamp",
   });
   return (
-    <AbsoluteFill style={{ padding: "10% 8.5%", justifyContent: "center" }}>
+    <Layout style={{ padding: "10% 8.5%", justifyContent: "center" }}>
       <div style={{ opacity: progress }}>
         <SceneLabel text={stringValue(scene.content.label)} palette={palette} />
         <div
@@ -267,7 +317,7 @@ function Mechanism({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
             style={{
               color: palette.muted,
               fontFamily: bodyFont,
-              fontSize: 32,
+              fontSize: 40,
               lineHeight: 1.35,
               marginTop: 24,
             }}
@@ -311,7 +361,7 @@ function Mechanism({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           amount={0.45 - calm * 0.2}
         />
       </div>
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
@@ -356,7 +406,7 @@ function StateCard({
         style={{
           color: ink,
           fontFamily: bodyFont,
-          fontSize: 29,
+          fontSize: 36,
           fontWeight: 600,
           marginTop: 34,
           textAlign: "center",
@@ -371,6 +421,7 @@ function StateCard({
 function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const k = useFillScale();
   const title = stringValue(
     scene.content.title,
     stringValue(scene.content.line1),
@@ -378,14 +429,14 @@ function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
   const subtitle = stringValue(scene.content.subtitle);
   const points = stringList(scene.content.points);
   return (
-    <AbsoluteFill style={{ padding: "10% 8.5%", justifyContent: "center" }}>
+    <Layout style={{ padding: "10% 8.5%", justifyContent: "center" }}>
       <div style={{ maxWidth: 860 }}>
         <SceneLabel text={stringValue(scene.content.label)} palette={palette} />
         <div
           style={{
             color: palette.ink,
             fontFamily: displayFont,
-            fontSize: headlineSize(title, 850, 98),
+            fontSize: headlineSize(title, fitWidth(850, k), 98),
             fontWeight: 600,
             lineHeight: 1.02,
             letterSpacing: -1.7,
@@ -398,7 +449,7 @@ function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
             style={{
               color: palette.muted,
               fontFamily: bodyFont,
-              fontSize: 32,
+              fontSize: 40,
               lineHeight: 1.4,
               marginTop: 24,
             }}
@@ -407,7 +458,14 @@ function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           </div>
         ) : null}
       </div>
-      <div style={{ display: "grid", gap: 22, marginTop: 70 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 0,
+          marginTop: 58,
+          borderBottom: `2px solid ${palette.muted}55`,
+        }}
+      >
         {points.map((point, index) => {
           const progress = enter(frame, fps, index * 6);
           return (
@@ -415,30 +473,27 @@ function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
               key={`${point}-${index}`}
               style={{
                 display: "grid",
-                gridTemplateColumns: "70px 1fr",
-                alignItems: "center",
-                gap: 28,
-                background: palette.surface,
-                borderRadius: 28,
-                padding: "30px 34px",
+                gridTemplateColumns: "84px 1fr",
+                alignItems: "baseline",
+                gap: 20,
+                borderRadius: 0,
+                padding: "30px 0",
+                borderTop: `2px solid ${palette.muted}55`,
                 opacity: progress,
                 transform: `translateY(${interpolate(progress, [0, 1], [28, 0])}px)`,
-                boxShadow: "0 18px 52px rgba(20, 40, 58, 0.07)",
               }}
             >
               <div
                 style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: "50%",
-                  background: palette.accentSoft,
+                  borderRadius: 0,
                   color: palette.accent,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  fontFamily: bodyFont,
-                  fontSize: 27,
-                  fontWeight: 700,
+                  justifyContent: "flex-start",
+                  fontFamily: displayFont,
+                  fontSize: 64,
+                  fontWeight: 600,
+                  lineHeight: 1,
                 }}
               >
                 {index + 1}
@@ -447,7 +502,7 @@ function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
                 style={{
                   color: palette.ink,
                   fontFamily: bodyFont,
-                  fontSize: 35,
+                  fontSize: 42,
                   fontWeight: 500,
                   lineHeight: 1.25,
                 }}
@@ -458,7 +513,7 @@ function Points({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           );
         })}
       </div>
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
@@ -475,14 +530,13 @@ function Statement({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
   );
   const progress = enter(frame, fps);
   return (
-    <AbsoluteFill style={{ padding: "11% 9%", justifyContent: "center" }}>
+    <Layout style={{ padding: "11% 9%", justifyContent: "center" }}>
       <div
         style={{
-          width: "88%",
-          padding: "70px 64px",
-          borderRadius: 44,
-          background: palette.surface,
-          boxShadow: "0 32px 90px rgba(20, 40, 58, 0.10)",
+          width: "100%",
+          padding: "8px 0 8px 52px",
+          borderRadius: 0,
+          borderLeft: `12px solid ${palette.accent}`,
           opacity: progress,
           transform: `translateY(${interpolate(progress, [0, 1], [36, 0])}px)`,
         }}
@@ -492,8 +546,9 @@ function Statement({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           style={{
             color: palette.ink,
             fontFamily: displayFont,
-            fontSize: 88,
-            lineHeight: 1.02,
+            fontSize: 108,
+            lineHeight: 1,
+            letterSpacing: -2,
             fontWeight: 600,
           }}
         >
@@ -504,7 +559,7 @@ function Statement({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
             style={{
               color: palette.muted,
               fontFamily: bodyFont,
-              fontSize: 34,
+              fontSize: 42,
               lineHeight: 1.4,
               marginTop: 34,
             }}
@@ -513,7 +568,7 @@ function Statement({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           </div>
         ) : null}
       </div>
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
@@ -530,7 +585,7 @@ function Cta({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
   );
   const progress = enter(frame, fps);
   return (
-    <AbsoluteFill style={{ padding: "11% 9%", justifyContent: "center" }}>
+    <Layout style={{ padding: "11% 9%", justifyContent: "center" }}>
       <div
         style={{
           width: 124,
@@ -566,7 +621,7 @@ function Cta({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           style={{
             color: palette.muted,
             fontFamily: bodyFont,
-            fontSize: 34,
+            fontSize: 42,
             lineHeight: 1.4,
             marginTop: 38,
           }}
@@ -574,14 +629,14 @@ function Cta({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           {subtitle}
         </div>
       ) : null}
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
 function Equation({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
   const equations = stringList(scene.content.latexBlocks);
   return (
-    <AbsoluteFill style={{ padding: "10% 8.5%", justifyContent: "center" }}>
+    <Layout style={{ padding: "10% 8.5%", justifyContent: "center" }}>
       <div
         style={{
           color: palette.ink,
@@ -609,7 +664,7 @@ function Equation({ scene, palette }: { scene: SceneSpec; palette: Palette }) {
           </code>
         ))}
       </div>
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
@@ -622,7 +677,7 @@ function VideoWindow({
 }) {
   const src = resolveAsset(stringValue(scene.content.src));
   return (
-    <AbsoluteFill style={{ padding: "8%", justifyContent: "center" }}>
+    <Layout style={{ padding: "8%", justifyContent: "center" }}>
       <div
         style={{
           color: palette.ink,
@@ -663,7 +718,7 @@ function VideoWindow({
           </div>
         )}
       </div>
-    </AbsoluteFill>
+    </Layout>
   );
 }
 
